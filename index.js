@@ -14,7 +14,7 @@ require('./site/style.css')
 // here to load the myEs6code.js file, and it will be automatically transpiled.
 
 // Change this to get detailed logging from the stomp library
-global.DEBUG = true
+global.DEBUG = false;
 
 // globalArray: Maintaining the global array to keep records of currencies getting from socket. 
 var globalArray = [];
@@ -22,18 +22,19 @@ var globalArray = [];
 // midPriceObject: Maintaining the global object to keep records of midprices against each currency name. 
 var midPriceObject = {};
 
+// tempArray: We keep the array of midprices against the currency name, we are keeping this array for the interval of next 30s. 
+var tempArray = {};
+
 const url = "ws://localhost:8011/stomp"
 const client = Stomp.client(url)
 client.debug = function (msg) {
   if (global.DEBUG) {
-    document.getElementById('stomp-status').innerHTML = msg
+    //document.getElementById('stomp-status').innerHTML = msg
   }
 }
 
 function connectCallback() {
-  //document.getElementById('stomp-status').innerHTML = "It has now successfully connected to a stomp server serving price updates for some foreign exchange currency pairs pairs."
-  document.getElementById('stomp-status').innerHTML = "<h1>connected successfully!</h1>"
-
+  document.getElementById('stomp-status').innerHTML = "It has now successfully connected to a stomp server serving price updates for some foreign exchange currency pairs pairs."
 
   // Socker subscriber callback function.  
   callback = function (message) {
@@ -48,6 +49,16 @@ function connectCallback() {
         globalArray.splice(index, 1, messageBody);
       } else {
         globalArray.push(messageBody);
+      }
+
+      const { bestBid, bestAsk } = messageBody;
+
+      // Maintains the array of midprice in one object. 
+      // On each update if the currency available then push the new midprice. 
+      if (midPriceObject[messageBody.name]) {
+        midPriceObject[messageBody.name].push((bestBid + bestAsk) / 2);
+      } else {
+        midPriceObject[messageBody.name] = [(bestBid + bestAsk) / 2];
       }
 
       // Repopulate the given table. 
@@ -88,7 +99,7 @@ function showData() {
               <th>Best Ask</th>
               <th>Last Change Ask</th>
               <th>Last Change Bid</th>
-              <th>Mid Price</th>
+              <th></th>
             </tr>`;
 
   //the amount that the best bid last changed, and the amount the best ask price last changed.
@@ -97,34 +108,60 @@ function showData() {
   for (const elem of finalArray) {
     const { name, bestBid, bestAsk, lastChangeAsk, lastChangeBid, midPrice } = elem;
 
+    const sparkLines = 'div-' + name;
+    const spandId = 'spark-' + name;
+
     tr = tr + `<tr> 
           <td>` + name + `</td>
           <td>` + bestBid + `</td>
           <td>` + bestAsk + `</td>
           <td>` + lastChangeAsk + `</td>
           <td>` + lastChangeBid + `</td>
-          <td>` + midPriceObject[name] + `</td>  
+          <td><div id="` + sparkLines + `"><span id="` + spandId + `">PLease</span></div></td>
         </tr>`;
   }
 
-  tr = tr + `<table>`;
-
+  tr = tr + `</table>`;
   document.getElementById('stomp-table').innerHTML = tr;
 
+  // To show sparklines in the last column. 
+  populateSparks();
 }
 
-const exampleSparkline = document.getElementById('example-sparkline');
+/**
+ * function: populateSparks
+ * description: Following function populate the sparklines. 
+ * Initially tempArray will be empty so will not show anything.
+ * But it will hold the same data for next 30s to show the sparks. 
+ * 
+ */
+
+function populateSparks() {
+
+  for (const elem of globalArray) {
+    const array1 = tempArray[elem.name];
+    const sparkElem = 'spark-' + elem.name;
+    const sprkElement = document.getElementById(sparkElem);
+    Sparkline.draw(sprkElement, array1)
+  }
+}
+
 
 // Set Interval to update the Spark Line on each 30 seconds. 
+
 setInterval(function () {
 
   for (const elem of globalArray) {
-    const { name, bestAsk, bestBid } = elem;
-    let midPrice = (bestAsk + bestBid) / 2;
-    midPriceObject[name] = midPrice;
-  }
+    const array1 = midPriceObject[elem.name];
 
-  const maps = Object.values(midPriceObject);
-  Sparkline.draw(exampleSparkline, maps)
+
+    const sparkLines = 'div-' + elem.name;
+    const sparkElem = 'spark-' + elem.name;
+    const sprkElement = document.getElementById(sparkElem);
+    Sparkline.draw(sprkElement, array1)
+
+    tempArray[elem.name] = [...array1]; // copy the array to tempArray. 
+    midPriceObject[elem.name] = []; // Clear the array. 
+  }
 
 }, 30000)
