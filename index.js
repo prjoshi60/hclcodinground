@@ -64,12 +64,17 @@ function connectCallback() {
       // Repopulate the given table. 
       showData();
 
+      let curName = messageBody.name;
+
+      if (tempArray[curName]) {
+        tempArray[curName].push();
+      } else {
+        createSparkLineImage(messageBody);
+      }
     } else {
       alert("Subscribe Error: ");
-
     }
   }
-
   client.subscribe("/fx/prices", callback);
 }
 
@@ -87,10 +92,10 @@ function showData() {
   const finalArray = [...globalArray];
 
   // Sort the array based on lastChangeBid value
-  finalArray.sort(function (a, b) {
-    return a.lastChangeBid - b.lastChangeBid
-  });
-  finalArray.reverse();
+  // finalArray.sort(function (a, b) {
+  //   return a.lastChangeBid - b.lastChangeBid
+  // });
+  // finalArray.reverse();
 
   var tr = `<table>
             <tr>
@@ -117,7 +122,7 @@ function showData() {
           <td>` + bestAsk + `</td>
           <td>` + lastChangeAsk + `</td>
           <td>` + lastChangeBid + `</td>
-          <td><div id="` + sparkLines + `"><span id="` + spandId + `">PLease</span></div></td>
+          <td><div id="` + sparkLines + `"><span id="` + spandId + `"></span></div></td>
         </tr>`;
   }
 
@@ -142,26 +147,40 @@ function populateSparks() {
     const array1 = tempArray[elem.name];
     const sparkElem = 'spark-' + elem.name;
     const sprkElement = document.getElementById(sparkElem);
-    Sparkline.draw(sprkElement, array1)
+    Sparkline.draw(sprkElement, array1);
   }
 }
 
 
-// Set Interval to update the Spark Line on each 30 seconds. 
+function createSparkLineImage(body) {
+  const { name } = body;
 
-setInterval(function () {
+  const array1 = midPriceObject[name];
 
-  for (const elem of globalArray) {
-    const array1 = midPriceObject[elem.name];
+  const sparkLines = 'div-' + name;
+  const sparkElem = 'spark-' + name;
+  const sprkElement = document.getElementById(sparkElem);
+  Sparkline.draw(sprkElement, array1);
+  tempArray[name] = [...array1]; // copy the array to tempArray. 
+  midPriceObject[name] = []; // Clear the array. 
 
+  setInterval(function () {
 
-    const sparkLines = 'div-' + elem.name;
-    const sparkElem = 'spark-' + elem.name;
+    const array1 = midPriceObject[name];
+    const sparkLines = 'div-' + name;
+    const sparkElem = 'spark-' + name;
+
     const sprkElement = document.getElementById(sparkElem);
     Sparkline.draw(sprkElement, array1)
 
-    tempArray[elem.name] = [...array1]; // copy the array to tempArray. 
-    midPriceObject[elem.name] = []; // Clear the array. 
-  }
+    tempArray[name] = [...array1]; // copy the array to tempArray. 
+    midPriceObject[name] = []; // Clear the array. 
+  }, 30000);
 
-}, 30000)
+}
+
+const sprkElement = document.getElementById('example-sparkline');
+Sparkline.draw(sprkElement, [1,5,3]);
+
+
+
