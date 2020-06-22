@@ -22,14 +22,11 @@ var globalArray = [];
 // midPriceObject: Maintaining the global object to keep records of midprices against each currency name. 
 var midPriceObject = {};
 
-// tempArray: We keep the array of midprices against the currency name, we are keeping this array for the interval of next 30s. 
-var tempArray = {};
-
 const url = "ws://localhost:8011/stomp"
 const client = Stomp.client(url)
 client.debug = function (msg) {
   if (global.DEBUG) {
-    //document.getElementById('stomp-status').innerHTML = msg
+    console.info(msg);
   }
 }
 
@@ -45,32 +42,49 @@ function connectCallback() {
       // Check if global array already have entry of the currency name.
       var index = globalArray.findIndex(elem => elem.name === messageBody.name);
 
+      // if the object with new currency exist in the array then replace with new object
       if (index > -1) {
         globalArray.splice(index, 1, messageBody);
       } else {
+         // if the object with new currency doest not exist in the array then push the new object
         globalArray.push(messageBody);
       }
 
-      const { bestBid, bestAsk } = messageBody;
+      // fetch the required variable from message body. 
+      const { bestBid, bestAsk, name } = messageBody;
 
-      // Maintains the array of midprice in one object. 
+      // Maintains the of midprice in one object. 
       // On each update if the currency available then push the new midprice. 
-      if (midPriceObject[messageBody.name]) {
-        midPriceObject[messageBody.name].push((bestBid + bestAsk) / 2);
+      if (midPriceObject[name]) {
+       
+        let { lastUpdateAt } = midPriceObject[name];
+
+        let currentTime = new Date();
+        let lastDate = new Date(lastUpdateAt);
+
+        // If the last updated time and current time has difference more than 30s then update the last udpate time and replace the whole array. 
+        if (((currentTime - lastDate) / 1000) > 30) {
+          midPriceObject[name].lastUpdateAt = new Date();
+          midPriceObject[name].sparkDataArray = [(bestBid + bestAsk) / 2];
+
+        } else {
+          //console.log("LAST UPDATE LESS THAN 30s..." + name );
+          //midPriceObject[name].lastUpdateAt = new Date();
+          midPriceObject[name].sparkDataArray.push((bestBid + bestAsk) / 2);
+        }
+
       } else {
-        midPriceObject[messageBody.name] = [(bestBid + bestAsk) / 2];
+        midPriceObject[name] = {
+          lastUpdateAt: new Date(),
+          sparkDataArray: [(bestBid + bestAsk) / 2]
+        }
       }
+
+      //console.log("New Entries: ",midPriceObject );
 
       // Repopulate the given table. 
       showData();
 
-      let curName = messageBody.name;
-
-      if (tempArray[curName]) {
-        tempArray[curName].push();
-      } else {
-        createSparkLineImage(messageBody);
-      }
     } else {
       alert("Subscribe Error: ");
     }
@@ -92,10 +106,10 @@ function showData() {
   const finalArray = [...globalArray];
 
   // Sort the array based on lastChangeBid value
-  // finalArray.sort(function (a, b) {
-  //   return a.lastChangeBid - b.lastChangeBid
-  // });
-  // finalArray.reverse();
+  finalArray.sort(function (a, b) {
+    return a.lastChangeBid - b.lastChangeBid
+  });
+  finalArray.reverse();
 
   var tr = `<table>
             <tr>
@@ -107,9 +121,8 @@ function showData() {
               <th></th>
             </tr>`;
 
-  //the amount that the best bid last changed, and the amount the best ask price last changed.
-
-  // Note: MidPrice will shows intially as undefined, after 30s if the currency has values then shows it.
+  
+  // Populate the latest data. 
   for (const elem of finalArray) {
     const { name, bestBid, bestAsk, lastChangeAsk, lastChangeBid, midPrice } = elem;
 
@@ -136,51 +149,22 @@ function showData() {
 /**
  * function: populateSparks
  * description: Following function populate the sparklines. 
- * Initially tempArray will be empty so will not show anything.
- * But it will hold the same data for next 30s to show the sparks. 
+ * Initially the spark value array will have only one element and hence show dots. 
  * 
  */
 
 function populateSparks() {
 
-  for (const elem of globalArray) {
-    const array1 = tempArray[elem.name];
-    const sparkElem = 'spark-' + elem.name;
+  for (const [key, obj] of Object.entries(midPriceObject)) {
+    const array1 = obj.sparkDataArray;
+    const sparkElem = 'spark-' + key;
     const sprkElement = document.getElementById(sparkElem);
     Sparkline.draw(sprkElement, array1);
   }
 }
 
-
-function createSparkLineImage(body) {
-  const { name } = body;
-
-  const array1 = midPriceObject[name];
-
-  const sparkLines = 'div-' + name;
-  const sparkElem = 'spark-' + name;
-  const sprkElement = document.getElementById(sparkElem);
-  Sparkline.draw(sprkElement, array1);
-  tempArray[name] = [...array1]; // copy the array to tempArray. 
-  midPriceObject[name] = []; // Clear the array. 
-
-  setInterval(function () {
-
-    const array1 = midPriceObject[name];
-    const sparkLines = 'div-' + name;
-    const sparkElem = 'spark-' + name;
-
-    const sprkElement = document.getElementById(sparkElem);
-    Sparkline.draw(sprkElement, array1)
-
-    tempArray[name] = [...array1]; // copy the array to tempArray. 
-    midPriceObject[name] = []; // Clear the array. 
-  }, 30000);
-
-}
-
 const sprkElement = document.getElementById('example-sparkline');
-Sparkline.draw(sprkElement, [1,5,3]);
+Sparkline.draw(sprkElement, [1, 5, 3]);
 
 
 
