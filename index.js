@@ -46,7 +46,7 @@ function connectCallback() {
       if (index > -1) {
         globalArray.splice(index, 1, messageBody);
       } else {
-         // if the object with new currency doest not exist in the array then push the new object
+        // if the object with new currency doest not exist in the array then push the new object
         globalArray.push(messageBody);
       }
 
@@ -55,34 +55,19 @@ function connectCallback() {
 
       // Maintains the of midprice in one object. 
       // On each update if the currency available then push the new midprice. 
+
+      let newMidPrice = {
+        value: (bestBid + bestAsk) / 2,
+        lastUpdateAt: new Date()
+      };
+
+
       if (midPriceObject[name]) {
-       
-        let { lastUpdateAt } = midPriceObject[name];
-
-        let currentTime = new Date();
-        let lastDate = new Date(lastUpdateAt);
-
-        // If the last updated time and current time has difference more than 30s then update the last udpate time and replace the whole array. 
-        if (((currentTime - lastDate) / 1000) > 30) {
-          midPriceObject[name].lastUpdateAt = new Date();
-          midPriceObject[name].sparkDataArray = [(bestBid + bestAsk) / 2];
-
-        } else {
-          //console.log("LAST UPDATE LESS THAN 30s..." + name );
-          //midPriceObject[name].lastUpdateAt = new Date();
-          midPriceObject[name].sparkDataArray.push((bestBid + bestAsk) / 2);
-        }
-
+        midPriceObject[name].push(newMidPrice);
       } else {
-        midPriceObject[name] = {
-          lastUpdateAt: new Date(),
-          sparkDataArray: [(bestBid + bestAsk) / 2]
-        }
+        midPriceObject[name] = [newMidPrice];
       }
 
-      //console.log("New Entries: ",midPriceObject );
-
-      // Repopulate the given table. 
       showData();
 
     } else {
@@ -121,7 +106,7 @@ function showData() {
               <th></th>
             </tr>`;
 
-  
+
   // Populate the latest data. 
   for (const elem of finalArray) {
     const { name, bestBid, bestAsk, lastChangeAsk, lastChangeBid, midPrice } = elem;
@@ -155,11 +140,17 @@ function showData() {
 
 function populateSparks() {
 
-  for (const [key, obj] of Object.entries(midPriceObject)) {
-    const array1 = obj.sparkDataArray;
+  for (const [key, sparkDataArray] of Object.entries(midPriceObject)) {
+
+    const result = sparkDataArray.filter(obj => {
+      let lastUpdateDate = new Date(obj.lastUpdateAt);
+      return (new Date() - lastUpdateDate) / 1000 < 30;
+    });
+
+    const values =  result.map( obj => obj.value);
     const sparkElem = 'spark-' + key;
     const sprkElement = document.getElementById(sparkElem);
-    Sparkline.draw(sprkElement, array1);
+    Sparkline.draw(sprkElement, values);
   }
 }
 
